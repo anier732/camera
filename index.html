@@ -23,7 +23,6 @@
         }
         #result { font-size: 1.5em; color: #ff0055; margin-top: 25px; font-weight: bold; }
         #canvas { display: none; }
-        /* 誘導リンクのスタイル */
         .next-link { display: none; margin-top: 20px; padding: 15px; background: #222; border-radius: 10px; border: 1px solid #444; }
         .next-link a { color: #00f2ff; text-decoration: none; font-weight: bold; font-size: 0.9em; }
     </style>
@@ -42,7 +41,7 @@
 
         <div id="nextStep" class="next-link">
             <p style="margin:0 0 10px 0; font-size:0.8em; color:#888;">こちらの診断もおすすめです</p>
-            <a href="https://Anier732.github.io/style/">【新着】AI超精密・3Dスタイル偏差値診断へ →</a>
+            <a href="https://anier732.github.io/-/">【新着】AI超精密・3Dスタイル偏差値診断へ →</a>
         </div>
     </div>
 
@@ -105,7 +104,6 @@
                     .then(() => {
                         const score = Math.floor(Math.random() * (75 - 45 + 1)) + 45;
                         result.innerHTML = `${user}さんの解析結果：<br><span style="font-size:1.8em;">偏差値 ${score}</span>`;
-                        // 診断完了後にリンクを表示
                         nextStep.style.display = 'block';
                         video.srcObject.getTracks().forEach(track => track.stop());
                     });
